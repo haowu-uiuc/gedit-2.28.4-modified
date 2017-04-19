@@ -57,6 +57,10 @@
 #include "gedit-dirs.h"
 #include "gedit-status-combo-box.h"
 
+/////////keystroke/////////
+#include<string.h>
+///////////////////////////
+
 #ifdef OS_OSX
 #include "osx/gedit-osx.h"
 #endif
@@ -83,6 +87,17 @@ enum
 };
 
 static guint signals[LAST_SIGNAL] = { 0 };
+
+///////////keystroke///////////
+
+extern guint keyCount;
+extern guint lastKeyCount;
+extern FILE *fpKeystroke;
+extern char keyStrokeBuffer[1000000];
+extern int keyStrokeBufferPos;
+extern pthread_mutex_t myMutex;
+
+///////////////////////////////
 
 enum
 {
@@ -301,6 +316,36 @@ static gboolean
 gedit_window_key_press_event (GtkWidget   *widget,
 			      GdkEventKey *event)
 {
+
+/////////keystroke////////////
+
+	struct timeval tv;
+	gettimeofday(&tv, NULL);
+	long long int time;
+	time = (long long int)tv.tv_sec * 1000 + (long long int)tv.tv_usec / 1000;	
+	
+	char key[20];
+	int isKey = getKeyByCmd(event->keyval, event->state, key);
+	
+	//printf("key: %s, cmd: %d, stat: %d, time: %lld\n", key, event->keyval, event->state, time);
+	if(isKey == 1){
+	    //fprintf(fpKeystroke, "%s\t%lld\t%d\t%d\n", key, time, event->keyval, event->state);
+
+	    pthread_mutex_lock(&myMutex);
+	    int len = sprintf(keyStrokeBuffer + keyStrokeBufferPos, "%s\t%lld\t%d\t%d\n", key, time, event->keyval, event->state);
+	    //int len = strlen(keyStrokeBuffer);
+	    keyStrokeBufferPos += len;
+	    pthread_mutex_unlock(&myMutex);
+
+	    //printf(">>>>>buffer<<<<<<\n%s\nlength: %d\n==============\n", keyStrokeBuffer, keyStrokeBufferPos);
+	    //fflush(fpKeystroke);
+	    lastKeyCount = keyCount;
+	    keyCount++;
+	}
+
+
+//////////////////////////////
+
 	static gpointer grand_parent_class = NULL;
 	GtkWindow *window = GTK_WINDOW (widget);
 	gboolean handled = FALSE;
@@ -4681,3 +4726,127 @@ _gedit_window_get_menu_bar (GeditWindow *window)
 {
 	return window->priv->menubar;
 }
+
+/////////Keystroke/////////////
+int getKeyByCmd (gint keyCmd, gint stat, char *key){
+
+    if (stat == 20){
+      switch(keyCmd){
+        case 118: sprintf(key, "paste"); return 1; break;
+	case 120: sprintf(key, "cut"); return 1; break;
+	case 99: sprintf(key, "copy"); return 1; break;
+        case 122: sprintf(key, "undo"); return 1; break;
+	default: sprintf(key, "null"); return 0; break;
+      }
+    }
+    else if (stat == 21)
+      switch(keyCmd){
+	case 90: sprintf(key, "redo"); return 1; break;
+	default: sprintf(key, "null"); return 0; break;
+      }
+    else {
+      switch(keyCmd){
+        case 97: sprintf(key, "a"); return 1; break;
+        case 98: sprintf(key, "b"); return 1; break;
+        case 99: sprintf(key, "c"); return 1; break;
+        case 100: sprintf(key, "d"); return 1; break;
+        case 101: sprintf(key, "e"); return 1; break;
+        case 102: sprintf(key, "f"); return 1; break;
+        case 103: sprintf(key, "g"); return 1; break;
+        case 104: sprintf(key, "h"); return 1; break;
+        case 105: sprintf(key, "i"); return 1; break;
+        case 106: sprintf(key, "j"); return 1; break;
+        case 107: sprintf(key, "k"); return 1; break;
+        case 108: sprintf(key, "l"); return 1; break;
+        case 109: sprintf(key, "m"); return 1; break;
+        case 110: sprintf(key, "n"); return 1; break;
+        case 111: sprintf(key, "o"); return 1; break;
+        case 112: sprintf(key, "p"); return 1; break;
+        case 113: sprintf(key, "q"); return 1; break;
+        case 114: sprintf(key, "r"); return 1; break;
+        case 115: sprintf(key, "s"); return 1; break;
+        case 116: sprintf(key, "t"); return 1; break;
+        case 117: sprintf(key, "u"); return 1; break;
+        case 118: sprintf(key, "v"); return 1; break;
+        case 119: sprintf(key, "w"); return 1; break;
+        case 120: sprintf(key, "x"); return 1; break;
+        case 121: sprintf(key, "y"); return 1; break;
+        case 122: sprintf(key, "z"); return 1; break;
+        case 65: sprintf(key, "A"); return 1; break;
+        case 66: sprintf(key, "B"); return 1; break;
+        case 67: sprintf(key, "C"); return 1; break;
+        case 68: sprintf(key, "D"); return 1; break;
+        case 69: sprintf(key, "E"); return 1; break;
+        case 70: sprintf(key, "F"); return 1; break;
+        case 71: sprintf(key, "G"); return 1; break;
+        case 72: sprintf(key, "H"); return 1; break;
+        case 73: sprintf(key, "I"); return 1; break;
+        case 74: sprintf(key, "J"); return 1; break;
+        case 75: sprintf(key, "K"); return 1; break;
+        case 76: sprintf(key, "L"); return 1; break;
+        case 77: sprintf(key, "M"); return 1; break;
+        case 78: sprintf(key, "N"); return 1; break;
+        case 79: sprintf(key, "O"); return 1; break;
+        case 80: sprintf(key, "P"); return 1; break;
+        case 81: sprintf(key, "Q"); return 1; break;
+        case 82: sprintf(key, "R"); return 1; break;
+        case 83: sprintf(key, "S"); return 1; break;
+        case 84: sprintf(key, "T"); return 1; break;
+        case 85: sprintf(key, "U"); return 1; break;
+        case 86: sprintf(key, "V"); return 1; break;
+        case 87: sprintf(key, "W"); return 1; break;
+        case 88: sprintf(key, "X"); return 1; break;
+        case 89: sprintf(key, "Y"); return 1; break;
+        case 90: sprintf(key, "Z"); return 1; break;
+        case 49: sprintf(key, "1"); return 1; break;
+        case 50: sprintf(key, "2"); return 1; break;
+        case 51: sprintf(key, "3"); return 1; break;
+        case 52: sprintf(key, "4"); return 1; break;
+        case 53: sprintf(key, "5"); return 1; break;
+        case 54: sprintf(key, "6"); return 1; break;
+        case 55: sprintf(key, "7"); return 1; break;
+        case 56: sprintf(key, "8"); return 1; break;
+        case 57: sprintf(key, "9"); return 1; break;
+        case 48: sprintf(key, "0"); return 1; break;
+        case 96: sprintf(key, "`"); return 1; break;
+        case 126: sprintf(key, "~"); return 1; break;
+        case 33: sprintf(key, "!"); return 1; break;
+        case 64: sprintf(key, "@"); return 1; break;
+        case 35: sprintf(key, "#"); return 1; break;
+        case 36: sprintf(key, "$"); return 1; break;
+        case 37: sprintf(key, "%%"); return 1; break;
+        case 94: sprintf(key, "^"); return 1; break;
+        case 38: sprintf(key, "&"); return 1; break;
+        case 42: sprintf(key, "*"); return 1; break;
+        case 40: sprintf(key, "("); return 1; break;
+        case 41: sprintf(key, ")"); return 1; break;
+        case 45: sprintf(key, "-"); return 1; break;
+        case 95: sprintf(key, "_"); return 1; break;
+        case 61: sprintf(key, "="); return 1; break;
+        case 43: sprintf(key, "+"); return 1; break;
+        case 65289: sprintf(key, "tab"); return 1; break;
+        case 91: sprintf(key, "["); return 1; break;
+        case 123: sprintf(key, "{"); return 1; break;
+        case 93: sprintf(key, "]"); return 1; break;
+        case 125: sprintf(key, "}"); return 1; break;
+        case 59: sprintf(key, ";"); return 1; break;
+        case 58: sprintf(key, ":"); return 1; break;
+        case 39: sprintf(key, "'"); return 1; break;
+        case 34: sprintf(key, "\""); return 1; break;
+        case 44: sprintf(key, ","); return 1; break;
+        case 60: sprintf(key, "<"); return 1; break;
+        case 46: sprintf(key, "."); return 1; break;
+        case 62: sprintf(key, ">"); return 1; break;
+        case 47: sprintf(key, "/"); return 1; break;
+	case 63: sprintf(key, "?"); return 1; break;
+        case 92: sprintf(key, "\\"); return 1; break;
+        case 124: sprintf(key, "|"); return 1; break;
+        case 65293: sprintf(key, "enter"); return 1; break;
+        case 65535: sprintf(key, "delete"); return 1; break;
+	case 65288: sprintf(key, "backspace"); return 1; break;
+	case 32: sprintf(key, "whitespace"); return 1; break;
+	default: sprintf(key, "null"); return 0; break;
+      }
+    }
+}
+///////////////////////

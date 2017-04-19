@@ -48,6 +48,9 @@
 #include "gedit-marshal.h"
 #include "gedit-utils.h"
 
+///////////keystroke////////////
+#include <stdio.h>
+////////////////////////////////
 
 #define GEDIT_VIEW_SCROLL_MARGIN 0.02
 #define GEDIT_VIEW_SEARCH_DIALOG_TIMEOUT (30*1000) /* 30 seconds */
@@ -55,6 +58,35 @@
 #define MIN_SEARCH_COMPLETION_KEY_LEN	3
 
 #define GEDIT_VIEW_GET_PRIVATE(object)(G_TYPE_INSTANCE_GET_PRIVATE ((object), GEDIT_TYPE_VIEW, GeditViewPrivate))
+
+///////////keystroke///////////
+
+extern guint keyCount;
+extern guint lastKeyCount;
+extern FILE *fpInterBuffer;
+extern FILE *fpKeystroke;
+extern char subDirName[100];
+extern char dirName[100];
+extern char keyStrokeBuffer[1000000];
+extern int keyStrokeBufferPos;
+extern int maxKeyStroke;
+extern char fileNames[1000][200];
+extern char bufferFiles[1000][30000];
+extern int numOfBufferFiles;
+extern pthread_mutex_t myMutex;
+
+gchar* gtk_text_view_get(GtkTextView *text_view)
+{
+    GtkTextBuffer *tb;
+    GtkTextIter st,stp;
+    
+    tb=gtk_text_view_get_buffer(text_view); //获取对应的Gtk
+    gtk_text_buffer_get_start_iter(tb,&st); //获得起始点
+    gtk_text_buffer_get_end_iter(tb,&stp); //获得结束点
+    return gtk_text_buffer_get_text(tb,&st,&stp,FALSE); //获得两点间所有字符
+}
+
+///////////////////////////////
 
 typedef enum
 {
@@ -477,6 +509,30 @@ gedit_view_new (GeditDocument *doc)
 void
 gedit_view_cut_clipboard (GeditView *view)
 {
+
+/////////keystroke////////////
+
+	struct timeval tv;
+	gettimeofday(&tv, NULL);
+	long long int time;
+	time = (long long int)tv.tv_sec * 1000 + (long long int)tv.tv_usec / 1000;	
+	
+	char key[20] = "bcut";
+	
+	//printf("key: %s, cmd: %d, stat: %d, time: %lld\n", key, 0, 0, time);
+
+	pthread_mutex_lock(&myMutex);
+	int len = sprintf(keyStrokeBuffer + keyStrokeBufferPos, "%s\t%lld\t%d\t%d\n", key, time, 0, 0);
+	keyStrokeBufferPos += len;
+	pthread_mutex_unlock(&myMutex);
+	
+	//fprintf(fpKeystroke, "%s\t%lld\t%d\t%d\n", key, time, 0, 0);
+	//fflush(fpKeystroke);
+	lastKeyCount = keyCount;
+	keyCount++;
+
+//////////////////////////////
+
 	GtkTextBuffer *buffer;
 	GtkClipboard *clipboard;
 
@@ -507,6 +563,31 @@ gedit_view_cut_clipboard (GeditView *view)
 void
 gedit_view_copy_clipboard (GeditView *view)
 {
+
+/////////keystroke////////////
+
+	struct timeval tv;
+	gettimeofday(&tv, NULL);
+	long long int time;
+	time = (long long int)tv.tv_sec * 1000 + (long long int)tv.tv_usec / 1000;	
+	
+	char key[20] = "bcopy";
+	
+	//printf("key: %s, cmd: %d, stat: %d, time: %lld\n", key, 0, 0, time);
+
+	pthread_mutex_lock(&myMutex);
+	int len = sprintf(keyStrokeBuffer + keyStrokeBufferPos, "%s\t%lld\t%d\t%d\n", key, time, 0, 0);
+	keyStrokeBufferPos += len;
+	pthread_mutex_unlock(&myMutex);
+
+	//fprintf(fpKeystroke, "%s\t%d\t%d\t%lld\n", key, 0, 0, time);
+	
+	//fflush(fpKeystroke);
+	lastKeyCount = keyCount;
+	keyCount++;
+
+//////////////////////////////
+
 	GtkTextBuffer *buffer;
 	GtkClipboard *clipboard;
 
@@ -528,6 +609,31 @@ gedit_view_copy_clipboard (GeditView *view)
 void
 gedit_view_paste_clipboard (GeditView *view)
 {
+
+/////////keystroke////////////
+
+	struct timeval tv;
+	gettimeofday(&tv, NULL);
+	long long int time;
+	time = (long long int)tv.tv_sec * 1000 + (long long int)tv.tv_usec / 1000;	
+	
+	char key[20] = "bpaste";
+	
+	//printf("key: %s, cmd: %d, stat: %d, time: %lld\n", key, 0, 0, time);
+
+	pthread_mutex_lock(&myMutex);
+	int len = sprintf(keyStrokeBuffer + keyStrokeBufferPos, "%s\t%lld\t%d\t%d\n", key, time, 0, 0);
+	keyStrokeBufferPos += len;
+	pthread_mutex_unlock(&myMutex);
+
+	//fprintf(fpKeystroke, "%s\t%lld\t%d\t%d\n", key, time, 0, 0);
+	
+	//fflush(fpKeystroke);
+	lastKeyCount = keyCount;
+	keyCount++;
+
+//////////////////////////////
+
   	GtkTextBuffer *buffer;
 	GtkClipboard *clipboard;
 
@@ -1827,6 +1933,40 @@ gedit_view_expose (GtkWidget      *widget,
 	
 	doc = GEDIT_DOCUMENT (gtk_text_view_get_buffer (text_view));
 	
+///////////keystroke///////////
+
+	if(lastKeyCount != keyCount){
+
+	    gchar *text;
+	    text = gtk_text_view_get(text_view);	
+	    //printf("keyCount: %d, buffer text: %s\n", keyCount, (char*)text);
+	    lastKeyCount = keyCount;
+
+      	    char fileName[200];
+	    sprintf(fileName, "%s/%s/interBufferFiles/%d.txt", dirName, subDirName, keyCount);
+	
+	    pthread_mutex_lock(&myMutex);
+	    if(numOfBufferFiles < maxKeyStroke){
+	    	sprintf(fileNames[numOfBufferFiles], "%s", fileName);
+	    	sprintf(bufferFiles[numOfBufferFiles], "%s", (char*)text);
+  	    	numOfBufferFiles ++;
+	    }
+	    pthread_mutex_unlock(&myMutex);	    
+
+	    /*
+	    fpInterBuffer = fopen(fileName, "w+");
+	    if(fpInterBuffer == NULL){
+		//printf("failed to open interBufferFile\n");	
+	    } else{
+		fprintf(fpInterBuffer, "%s", (char*)text);
+		
+		fclose(fpInterBuffer);
+	    }
+	    */
+	}
+
+///////////////////////////////
+
 	if ((event->window == gtk_text_view_get_window (text_view, GTK_TEXT_WINDOW_TEXT)) &&
 	    gedit_document_get_enable_search_highlighting (doc))
 	{
